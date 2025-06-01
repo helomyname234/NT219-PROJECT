@@ -1,9 +1,9 @@
 import sqlite3
 import os
-from typing import Optional, Dict, Any # Để type hinting rõ ràng hơn
+from typing import Optional, Dict, Any, List # Thêm List nếu bạn viết hàm get_all_citizens_db
 
-# Tên file database, bạn có thể đặt ở một file config riêng nếu muốn
-DB_FILE_PATH = "citizens.db" # File này sẽ được tạo ở thư mục gốc của dự án
+# Tên file database
+DB_FILE_PATH = "citizens.db"
 
 def get_db_connection() -> sqlite3.Connection:
     """
@@ -16,175 +16,142 @@ def get_db_connection() -> sqlite3.Connection:
 
 def init_db() -> None:
     """
-    Khởi tạo database: Tạo bảng 'citizens' nếu nó chưa tồn tại.
+    Khởi tạo database: Tạo bảng 'citizens' với các cột cho AES-GCM nếu nó chưa tồn tại.
     """
-    if os.path.exists(DB_FILE_PATH):
-        print(f"Database file '{DB_FILE_PATH}' already exists. Skipping table creation.")
-        # Tuy nhiên, bạn có thể muốn kiểm tra xem bảng đã tồn tại chưa, 
-        # thay vì chỉ kiểm tra file. Nhưng cho đồ án này, kiểm tra file là đủ.
-        # conn_check = get_db_connection()
-        # cursor_check = conn_check.cursor()
-        # cursor_check.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='citizens';")
-        # table_exists = cursor_check.fetchone()
-        # conn_check.close()
-        # if table_exists:
-        #     print("Table 'citizens' already exists.")
-        #     return
-    else:
-        print(f"Database file '{DB_FILE_PATH}' not found. Creating new database and table.")
-
+    db_existed_before_init = os.path.exists(DB_FILE_PATH)
+    
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
+        # Xóa bảng cũ nếu tồn tại và cấu trúc không khớp? 
+        # Hoặc chỉ tạo nếu chưa có. Để đơn giản, chúng ta sẽ chỉ tạo nếu chưa có.
+        # Nếu bạn muốn đảm bảo cấu trúc mới, bạn có thể DROP TABLE IF EXISTS citizens rồi CREATE lại,
+        # nhưng điều đó sẽ xóa hết dữ liệu cũ. Cân nhắc cẩn thận.
+        # Vì đây là đồ án và bạn đang phát triển, việc xóa DB cũ (`rm citizens.db`) 
+        # trước khi chạy với cấu trúc mới là chấp nhận được.
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS citizens (
                 citizen_id TEXT PRIMARY KEY,
-                encrypted_data_hex TEXT NOT NULL,
-                kyber_ciphertext_c_hex TEXT NOT NULL 
-                -- kyber_ciphertext_c_hex: bản mã Kyber của khóa AES dùng để mã hóa encrypted_data_hex
+                aes_gcm_nonce_hex TEXT NOT NULL,         -- Nonce cho AES-GCM
+                encrypted_data_with_tag_hex TEXT NOT NULL, -- Ciphertext + Tag từ AES-GCM
+                kyber_ciphertext_c_hex TEXT NOT NULL     -- Bản mã Kyber của khóa AES
             );
         """)
         conn.commit()
-        print("Table 'citizens' created or already exists.")
+        if not db_existed_before_init:
+            print(f"Database file '{DB_FILE_PATH}' created.")
+        print("Table 'citizens' (with AES-GCM fields) is ready.")
     except sqlite3.Error as e:
         print(f"SQLite error during table creation: {e}")
     finally:
         conn.close()
 
-def add_citizen_record_db(citizen_id: str, encrypted_data_hex: str, kyber_ciphertext_c_hex: str) -> None:
+def add_citizen_record_db(citizen_id: str, aes_gcm_nonce_hex: str, encrypted_data_with_tag_hex: str, kyber_ciphertext_c_hex: str) -> None:
     """
-    Thêm một bản ghi công dân mới vào database.
+    Thêm một bản ghi công dân mới vào database (đã cập nhật cho AES-GCM).
     Raise ValueError nếu citizen_id đã tồn tại.
     """
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
         cursor.execute("""
-            INSERT INTO citizens (citizen_id, encrypted_data_hex, kyber_ciphertext_c_hex)
-            VALUES (?, ?, ?)
-        """, (citizen_id, encrypted_data_hex, kyber_ciphertext_c_hex))
+            INSERT INTO citizens (citizen_id, aes_gcm_nonce_hex, encrypted_data_with_tag_hex, kyber_ciphertext_c_hex)
+            VALUES (?, ?, ?, ?)
+        """, (citizen_id, aes_gcm_nonce_hex, encrypted_data_with_tag_hex, kyber_ciphertext_c_hex))
         conn.commit()
-        print(f"Record for citizen_id '{citizen_id}' added to the database.")
-    except sqlite3.IntegrityError: # Xảy ra khi PRIMARY KEY (citizen_id) bị trùng
+        print(f"Record for citizen_id '{citizen_id}' (AES-GCM) added to the database.")
+    except sqlite3.IntegrityError: 
         print(f"Error: Citizen ID '{citizen_id}' already exists in the database.")
         raise ValueError(f"Citizen ID {citizen_id} already exists.")
     except sqlite3.Error as e:
         print(f"SQLite error during record insertion: {e}")
-        # Bạn có thể muốn raise một exception khác ở đây tùy theo cách xử lý lỗi
         raise
     finally:
         conn.close()
 
 def get_citizen_record_db(citizen_id: str) -> Optional[Dict[str, Any]]:
     """
-    Lấy thông tin bản ghi của một công dân dựa trên citizen_id.
+    Lấy thông tin bản ghi của một công dân dựa trên citizen_id (đã cập nhật cho AES-GCM).
     Trả về một dictionary nếu tìm thấy, ngược lại trả về None.
     """
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
         cursor.execute("""
-            SELECT citizen_id, encrypted_data_hex, kyber_ciphertext_c_hex 
+            SELECT citizen_id, aes_gcm_nonce_hex, encrypted_data_with_tag_hex, kyber_ciphertext_c_hex 
             FROM citizens 
             WHERE citizen_id = ?
         """, (citizen_id,))
-        row = cursor.fetchone() # Lấy một dòng kết quả
+        row = cursor.fetchone()
         
         if row:
-            print(f"Record found for citizen_id '{citizen_id}'.")
-            return dict(row) # Chuyển sqlite3.Row thành một dictionary Python tiêu chuẩn
+            # print(f"Record found for citizen_id '{citizen_id}'.") # Bỏ print để đỡ rối log app
+            return dict(row) 
         else:
-            print(f"No record found for citizen_id '{citizen_id}'.")
+            # print(f"No record found for citizen_id '{citizen_id}'.")
             return None
     except sqlite3.Error as e:
         print(f"SQLite error during record retrieval: {e}")
-        return None # Hoặc raise exception
+        return None 
     finally:
         conn.close()
 
-# --- (Tùy chọn) Các hàm khác bạn có thể cần sau này ---
-# def update_citizen_record_db(citizen_id: str, new_encrypted_data_hex: str, new_kyber_ciphertext_c_hex: str) -> bool:
-#     """Cập nhật bản ghi. Trả về True nếu thành công, False nếu không tìm thấy citizen_id."""
+# --- (Tùy chọn) Hàm lấy tất cả công dân để debug ---
+# def get_all_citizens_db() -> List[Dict[str, Any]]:
+#     """Lấy tất cả các bản ghi công dân từ database."""
 #     conn = get_db_connection()
 #     cursor = conn.cursor()
 #     try:
 #         cursor.execute("""
-#             UPDATE citizens
-#             SET encrypted_data_hex = ?, kyber_ciphertext_c_hex = ?
-#             WHERE citizen_id = ?
-#         """, (new_encrypted_data_hex, new_kyber_ciphertext_c_hex, citizen_id))
-#         conn.commit()
-#         if cursor.rowcount > 0: # Kiểm tra xem có dòng nào được cập nhật không
-#             print(f"Record for citizen_id '{citizen_id}' updated.")
-#             return True
-#         else:
-#             print(f"No record found for citizen_id '{citizen_id}' to update.")
-#             return False
+#             SELECT citizen_id, aes_gcm_nonce_hex, encrypted_data_with_tag_hex, kyber_ciphertext_c_hex 
+#             FROM citizens
+#         """)
+#         rows = cursor.fetchall()
+#         return [dict(row) for row in rows]
 #     except sqlite3.Error as e:
-#         print(f"SQLite error during record update: {e}")
-#         return False
+#         print(f"SQLite error during retrieval of all records: {e}")
+#         return []
 #     finally:
 #         conn.close()
 
-# def delete_citizen_record_db(citizen_id: str) -> bool:
-#     """Xóa bản ghi. Trả về True nếu thành công, False nếu không tìm thấy citizen_id."""
-#     conn = get_db_connection()
-#     cursor = conn.cursor()
-#     try:
-#         cursor.execute("DELETE FROM citizens WHERE citizen_id = ?", (citizen_id,))
-#         conn.commit()
-#         if cursor.rowcount > 0:
-#             print(f"Record for citizen_id '{citizen_id}' deleted.")
-#             return True
-#         else:
-#             print(f"No record found for citizen_id '{citizen_id}' to delete.")
-#             return False
-#     except sqlite3.Error as e:
-#         print(f"SQLite error during record deletion: {e}")
-#         return False
-#     finally:
-#         conn.close()
 
 if __name__ == '__main__':
-    # Phần này để bạn chạy test nhanh các hàm DB (không phải unit test đầy đủ)
-    # Sẽ tạo file citizens.db ở thư mục hiện tại nếu bạn chạy file này trực tiếp
-    print("Running DB Utils self-test...")
+    print("Running DB Utils self-test (AES-GCM version)...")
+    
+    # Xóa DB cũ để test từ đầu (chỉ khi chạy trực tiếp file này)
+    if os.path.exists(DB_FILE_PATH):
+        print(f"Removing existing database file '{DB_FILE_PATH}' for fresh test.")
+        os.remove(DB_FILE_PATH)
+        
     init_db()
 
     # Test thêm dữ liệu
     try:
-        add_citizen_record_db("TEST001", "encrypted_data_example_hex_1", "kyber_ciphertext_example_hex_1")
-        add_citizen_record_db("TEST002", "encrypted_data_example_hex_2", "kyber_ciphertext_example_hex_2")
+        add_citizen_record_db("TESTGCM001", "nonce_hex_1", "encrypted_tag_hex_1", "kyber_cipher_hex_1")
+        add_citizen_record_db("TESTGCM002", "nonce_hex_2", "encrypted_tag_hex_2", "kyber_cipher_hex_2")
+        print("Self-test: Added initial records.")
     except ValueError as e:
-        print(f"Self-test add error (expected if run multiple times): {e}")
-
+        print(f"Self-test add error (should not happen on fresh DB): {e}")
 
     # Test lấy dữ liệu
-    record1 = get_citizen_record_db("TEST001")
+    record1 = get_citizen_record_db("TESTGCM001")
     if record1:
-        print("Retrieved TEST001:", record1)
-        assert record1["encrypted_data_hex"] == "encrypted_data_example_hex_1"
+        print("Retrieved TESTGCM001:", record1)
+        assert record1["aes_gcm_nonce_hex"] == "nonce_hex_1"
+        assert record1["encrypted_data_with_tag_hex"] == "encrypted_tag_hex_1"
     else:
-        print("TEST001 not found during self-test retrieve.")
+        print("TESTGCM001 not found during self-test retrieve. ERROR.")
 
-    record_non_existent = get_citizen_record_db("NONEXISTENT")
+    record_non_existent = get_citizen_record_db("NONEXISTENTGCM")
     assert record_non_existent is None
+    print("Self-test: Retrieval of non-existent record OK.")
 
-    # (Tùy chọn) Test update và delete nếu bạn đã implement
-    # success_update = update_citizen_record_db("TEST001", "new_encrypted_hex", "new_kyber_hex")
-    # if success_update:
-    #     updated_record1 = get_citizen_record_db("TEST001")
-    #     print("Updated TEST001:", updated_record1)
-    #     assert updated_record1["encrypted_data_hex"] == "new_encrypted_hex"
-
-    # success_delete = delete_citizen_record_db("TEST002")
-    # assert success_delete
-    # deleted_record2 = get_citizen_record_db("TEST002")
-    # assert deleted_record2 is None
-    # print("Record TEST002 successfully deleted.")
-
-    print("DB Utils self-test finished.")
-    # Khi test xong, bạn có thể muốn xóa file citizens.db để lần sau test lại từ đầu
-    # if os.path.exists(DB_FILE_PATH):
-    #     os.remove(DB_FILE_PATH)
-    #     print(f"'{DB_FILE_PATH}' removed for next test run.")
+    # Test thêm trùng lặp
+    try:
+        add_citizen_record_db("TESTGCM001", "nonce_hex_3", "encrypted_tag_hex_3", "kyber_cipher_hex_3")
+        print("Self-test: Added duplicate record - FAILED (should have raised error).")
+    except ValueError as e:
+        print(f"Self-test: Attempt to add duplicate record raised ValueError as expected: {e}")
+    
+    print("DB Utils self-test (AES-GCM version) finished.")
