@@ -26,7 +26,7 @@ Trước khi bắt đầu, hãy đảm bảo bạn đã cài đặt các gói đ
 ```bash
 sudo apt update
 sudo apt install git cmake build-essential python3 python3-venv python3-pip
-
+'''endbash
 ###Hướng dẫn Cài đặt và Chạy dự án từ nhánh develop
 1. Clone Dự án từ Nhánh develop
 
@@ -36,9 +36,6 @@ cd NT219-PROJECT
 
     
 
-IGNORE_WHEN_COPYING_START
-Use code with caution. Bash
-IGNORE_WHEN_COPYING_END
 
 (Thay helomyname234/NT219-PROJECT.git bằng URL repository của bạn nếu khác).
 2. Cài đặt liboqs (Thư viện C)
