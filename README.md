@@ -26,7 +26,7 @@ Trước khi bắt đầu, hãy đảm bảo bạn đã cài đặt các gói đ
 ```bash
 sudo apt update
 sudo apt install git cmake build-essential python3 python3-venv python3-pip
-'''endbash
+```bash
 ###Hướng dẫn Cài đặt và Chạy dự án từ nhánh develop
 1. Clone Dự án từ Nhánh develop
 
