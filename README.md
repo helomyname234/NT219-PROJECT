@@ -26,27 +26,22 @@ Trước khi bắt đầu, hãy đảm bảo bạn đã cài đặt các gói đ
 ```bash
 sudo apt update
 sudo apt install git cmake build-essential python3 python3-venv python3-pip
-```bash
-###Hướng dẫn Cài đặt và Chạy dự án từ nhánh develop
+```
+### Hướng dẫn Cài đặt và Chạy dự án từ nhánh develop
 1. Clone Dự án từ Nhánh develop
 
-      
+```bash      
 git clone -b develop https://github.com/helomyname234/NT219-PROJECT.git
 cd NT219-PROJECT
-
-    
-
-
+```
 (Thay helomyname234/NT219-PROJECT.git bằng URL repository của bạn nếu khác).
 2. Cài đặt liboqs (Thư viện C)
-
 Hệ thống này yêu cầu thư viện liboqs gốc được biên dịch và cài đặt với các thuật toán Kyber và Dilithium (nếu sử dụng) đã được kích hoạt.
-
-      
 # Tạo một thư mục riêng để build liboqs (bên ngoài thư mục dự án này)
 mkdir -p ~/build_libs && cd ~/build_libs
 
 # Clone và build liboqs
+```bash
 git clone --depth=1 https://github.com/open-quantum-safe/liboqs
 cd liboqs
 mkdir build && cd build
@@ -68,12 +63,8 @@ source ~/.bashrc # Hoặc source ~/.zshrc
 # Quay lại thư mục dự án NT219-PROJECT
 cd /path/to/your/NT219-PROJECT # Thay bằng đường dẫn thực tế
 
-    
 
-IGNORE_WHEN_COPYING_START
-Use code with caution. Bash
-IGNORE_WHEN_COPYING_END
-
+```
 Lưu ý: Nếu bạn gặp lỗi MechanismNotSupportedError khi chạy ứng dụng sau này, có thể là do các thuật toán cần thiết chưa được bật đúng cách khi biên dịch liboqs. Hãy kiểm tra lại cờ CMake.
 3. Thiết lập Môi trường ảo Python và Cài đặt các Phụ thuộc
 
@@ -93,27 +84,14 @@ pip install fastapi "uvicorn[standard]" cryptography
 # Nếu bạn có file requirements.txt, bạn có thể dùng:
 # pip install -r requirements.txt
 
-    
-
-IGNORE_WHEN_COPYING_START
-Use code with caution. Bash
-IGNORE_WHEN_COPYING_END
 
 (Lưu ý: liboqs-python khi được cài đặt qua pip install oqs sẽ cố gắng tìm liboqs.so đã được cài đặt trên hệ thống của bạn. Nếu không tìm thấy, nó có thể cố gắng tự build một bản liboqs (điều này cũng được đề cập trong README của liboqs-python như một tùy chọn). Tuy nhiên, việc cài đặt thủ công liboqs như ở Bước 2 cho phép bạn kiểm soát các thuật toán được bật tốt hơn).
 4. Khởi tạo Database và Khóa Hệ thống
 
 Ứng dụng sẽ tự động tạo file database SQLite (citizens.db) và các khóa hệ thống cần thiết (trong thư mục system_keys/, thư mục này đã được thêm vào .gitignore) khi chạy lần đầu nếu chúng chưa tồn tại.
 5. Chạy Ứng dụng Backend (API Server)
-
-      
 # (Với môi trường ảo venv_oqs đã được kích hoạt)
 uvicorn app.main:app --reload
-
-    
-
-IGNORE_WHEN_COPYING_START
-Use code with caution. Bash
-IGNORE_WHEN_COPYING_END
 
 (Giả sử file chính của bạn là app/main.py và instance FastAPI tên là app. Điều chỉnh nếu cần).
 
