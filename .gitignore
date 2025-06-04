@@ -1,0 +1,40 @@
+# Môi trường ảo Python
+venv_oqs/
+venv/
+*.env
+.env.*
+env/
+ENV/
+
+# Bytecode và cache Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.sage.py # Nếu bạn dùng SageMath và nó tạo file tạm
+
+# SQLite database (file dữ liệu và các file tạm của nó)
+citizens.db
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal # File journal cũ của SQLite
+*.db-shm    # File shared memory của SQLite WAL mode
+*.db-wal    # File write-ahead log của SQLite WAL mode
+
+# Thư mục chứa khóa bí mật (RẤT QUAN TRỌNG)
+system_keys/ 
+
+# File cấu hình local, logs, file tạm của HĐH
+local_settings.py
+*.log
+*~
+*.swp
+.DS_Store
+Thumbs.db
+
+# Thư mục build và các file liên quan đến IDE (tùy chọn)
+build/
+dist/
+*.egg-info/
+.vscode/
+.idea/
