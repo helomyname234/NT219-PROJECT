@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, status
 import json
 import os 
+import base64
 from typing import Optional, List # Import List nếu bạn dùng endpoint /citizens
 
 # Import các Pydantic models từ app.model
@@ -16,7 +17,9 @@ from .oqs_utils import (
     load_key_from_file, 
     oqs_kem_encapsulate, oqs_kem_decapsulate,
     aes_gcm_encrypt, aes_gcm_decrypt, # Đã cập nhật sang AES-GCM
-    KYBER_ALG_NAME, KEY_DIR, ADMIN_KYBER_PK_FILENAME, ADMIN_KYBER_SK_FILENAME
+    oqs_signature_sign,oqs_signature_verify,
+    KYBER_ALG_NAME, KEY_DIR, ADMIN_KYBER_PK_FILENAME, ADMIN_KYBER_SK_FILENAME,
+    DILITHIUM_ALG_NAME,ADMIN_DILITHIUM_PK_FILENAME,ADMIN_DILITHIUM_SK_FILENAME
 )
 import oqs # Import oqs để bắt MechanismNotSupportedError nếu cần
 
@@ -28,24 +31,35 @@ app = FastAPI(
 )
 
 # --- Biến toàn cục cho khóa admin (tải một lần khi khởi động) ---
+# Kyber
 ADMIN_KYBER_PUBLIC_KEY: Optional[bytes] = None
 ADMIN_KYBER_SECRET_KEY: Optional[bytes] = None
+# Dilithium
+ADMIN_DILITHIUM_SECRET_KEY: Optional[bytes] = None
+ADMIN_DILITHIUM_PUBLIC_KEY: Optional[bytes] = None
 
 # --- Sự kiện Startup ---
 @app.on_event("startup")
 async def startup_event():
-    global ADMIN_KYBER_PUBLIC_KEY, ADMIN_KYBER_SECRET_KEY
+    global ADMIN_KYBER_PUBLIC_KEY, ADMIN_KYBER_SECRET_KEY,ADMIN_DILITHIUM_PUBLIC_KEY,ADMIN_DILITHIUM_SECRET_KEY
     print("Application startup: Initializing database and loading/creating system keys...")
     init_db() # Đảm bảo DB và bảng đã sẵn sàng với cấu trúc mới
     initialize_system_keys() 
+# Kyber
+    kyber_pk_path = os.path.join(KEY_DIR, ADMIN_KYBER_PK_FILENAME)
+    kyber_sk_path = os.path.join(KEY_DIR, ADMIN_KYBER_SK_FILENAME)
 
-    pk_path = os.path.join(KEY_DIR, ADMIN_KYBER_PK_FILENAME)
-    sk_path = os.path.join(KEY_DIR, ADMIN_KYBER_SK_FILENAME)
+    ADMIN_KYBER_PUBLIC_KEY = load_key_from_file(kyber_pk_path)
+    ADMIN_KYBER_SECRET_KEY = load_key_from_file(kyber_sk_path)
+# Dilithium
+    dilithium_pk_path = os.path.join(KEY_DIR, ADMIN_DILITHIUM_PK_FILENAME)
+    dilithium_sk_path = os.path.join(KEY_DIR, ADMIN_DILITHIUM_SK_FILENAME)
+
+    ADMIN_DILITHIUM_SECRET_KEY = load_key_from_file(dilithium_sk_path)
+    ADMIN_DILITHIUM_PUBLIC_KEY = load_key_from_file(dilithium_pk_path)
     
-    ADMIN_KYBER_PUBLIC_KEY = load_key_from_file(pk_path)
-    ADMIN_KYBER_SECRET_KEY = load_key_from_file(sk_path)
 
-    if not ADMIN_KYBER_PUBLIC_KEY or not ADMIN_KYBER_SECRET_KEY:
+    if not ADMIN_KYBER_PUBLIC_KEY or not ADMIN_KYBER_SECRET_KEY or not ADMIN_DILITHIUM_PUBLIC_KEY or not ADMIN_DILITHIUM_SECRET_KEY:
         print("LỖI NGHIÊM TRỌNG: Không thể tải khóa Kyber của Admin khi khởi động ứng dụng.")
         raise SystemExit("Không thể tải khóa hệ thống cần thiết. Ứng dụng dừng lại.")
     
@@ -58,8 +72,8 @@ async def read_root():
 
 @app.post("/register", response_model=CitizenDisplay, status_code=status.HTTP_201_CREATED, tags=["Citizens"])
 async def register_new_citizen(citizen_data: CitizenCreate):
-    global ADMIN_KYBER_PUBLIC_KEY
-    if not ADMIN_KYBER_PUBLIC_KEY:
+    global ADMIN_KYBER_PUBLIC_KEY, ADMIN_DILITHIUM_PUBLIC_KEY
+    if not ADMIN_KYBER_PUBLIC_KEY or not ADMIN_DILITHIUM_PUBLIC_KEY:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Hệ thống chưa sẵn sàng, không tìm thấy khóa công khai admin.")
 
     print(f"Attempting to register citizen_id: {citizen_data.citizen_id} with Kyber KEM + AES-GCM.")
@@ -68,33 +82,77 @@ async def register_new_citizen(citizen_data: CitizenCreate):
         citizen_data_plaintext_str = json.dumps(citizen_dict)
         citizen_data_plaintext_bytes = citizen_data_plaintext_str.encode('utf-8')
 
+
+# Client
         # 1. Đóng gói (KEM) để tạo khóa AES (shared_secret_k) và bản mã Kyber của nó (kyber_ciphertext_c)
-        #    sử dụng khóa công khai Kyber của Admin.
+        #   sử dụng khóa công khai Kyber của Admin.
+        #   Gui khoa AES cho server 
+        #   record_specific_aes_key là khóa AES sẽ dùng, được tạo an toàn từ KEM.
         kyber_ciphertext_c_for_aes_key, record_specific_aes_key = oqs_kem_encapsulate(
             ADMIN_KYBER_PUBLIC_KEY, KYBER_ALG_NAME
         )
-        # record_specific_aes_key là khóa AES sẽ dùng, được tạo an toàn từ KEM.
+        
 
         # 2. Mã hóa dữ liệu công dân bằng khóa AES (record_specific_aes_key) vừa được tạo bằng AES-GCM
-        # aes_gcm_encrypt sẽ trả về (nonce, ciphertext_bao_gom_tag)
-        # (Tùy chọn: có thể thêm associated_data, ví dụ citizen_id dạng bytes)
-        # associated_auth_data = citizen_data.citizen_id.encode('utf-8')
+        #   aes_gcm_encrypt sẽ trả về (nonce, ciphertext_bao_gom_tag)
+        #   (Tùy chọn: có thể thêm associated_data, ví dụ citizen_id dạng bytes)
+        #   associated_auth_data = citizen_data.citizen_id.encode('utf-8')
         nonce, ciphertext_with_tag = aes_gcm_encrypt(
             record_specific_aes_key, 
             citizen_data_plaintext_bytes
             # associated_data=associated_auth_data # Bỏ comment nếu bạn dùng
         )
+        # 3. Ky du lieu bang Dilithium nham dam bao tinh toan ven du lieu
 
-        # 3. Lưu vào DB:
+        sig_cyphertext = oqs_signature_sign(ADMIN_DILITHIUM_SECRET_KEY,ciphertext_with_tag+nonce,DILITHIUM_ALG_NAME)
+        # 4. Chuyen du lieu nhi phan sang base64 gui qua JSON
+
+        #   Gui khoa AES va nonce cho server
+        kyber_ciphertext_c_for_aes_key=base64.b64encode(kyber_ciphertext_c_for_aes_key).decode('utf-8')
+        nonce = base64.b64encode(nonce).decode('utf-8')
+        #   Gui du lieu duoc ma hoa AES
+        ciphertext_with_tag = base64.b64encode(ciphertext_with_tag).decode('utf-8')
+        #   Gui chu ky so cua cyphertext va public key dilithium
+        sig_cyphertext = base64.b64encode(sig_cyphertext).decode('utf-8')
+        dili_pubkey=base64.b64encode(ADMIN_DILITHIUM_PUBLIC_KEY).decode('utf-8')
+        
+#Server:
+
+        # 1. Nhan du lieu do nguoi dung nhap vao va giai ma b64
+
+        kyber_ciphertext_c_for_aes_key=base64.b64decode(kyber_ciphertext_c_for_aes_key)
+        nonce = base64.b64decode(nonce)
+        #   Gui du lieu duoc ma hoa AES
+        ciphertext_with_tag = base64.b64decode(ciphertext_with_tag)
+        #   Gui chu ky so cua cyphertext va public key dilithium
+        sig_cyphertext = base64.b64decode(sig_cyphertext)
+        dili_pubkey=base64.b64decode(dili_pubkey)
+        # 2. Xac thuc toan ven du lieu
+
+        if not oqs_signature_verify(dili_pubkey,ciphertext_with_tag+nonce,sig_cyphertext,DILITHIUM_ALG_NAME):
+            return None
+        # 3. Giai ma du lieu
+        retrieved_aes_key = oqs_kem_decapsulate(
+            ADMIN_KYBER_SECRET_KEY, kyber_ciphertext_c_for_aes_key, KYBER_ALG_NAME
+        )
+        decrypted_citizen_data_bytes = aes_gcm_decrypt(
+            retrieved_aes_key, 
+            nonce, 
+            ciphertext_with_tag
+        )
+        decrypted_citizen_data_str = decrypted_citizen_data_bytes.decode('utf-8')
+        citizen_info_dict = json.loads(decrypted_citizen_data_str)
+        new_citizen= CitizenCreate(**citizen_info_dict)
+        # . Lưu vào DB:
         add_citizen_record_db(
-            citizen_id=citizen_data.citizen_id,
+            citizen_id=new_citizen.citizen_id,
             aes_gcm_nonce_hex=nonce.hex(),                         # Lưu nonce dạng hex
-            encrypted_data_with_tag_hex=ciphertext_with_tag.hex(), # Lưu ciphertext+tag dạng hex
+            dili_public_key=dili_pubkey.hex(), # Lưu ciphertext+tag dạng hex
             kyber_ciphertext_c_hex=kyber_ciphertext_c_for_aes_key.hex()
         )
         
         # Trả về thông tin công dân gốc (trước khi mã hóa)
-        return CitizenDisplay(**citizen_dict)
+        return CitizenDisplay(**citizen_info_dict)
     
     except ValueError as ve: # Có thể là lỗi từ add_citizen_record_db (trùng ID) hoặc từ aes_gcm_encrypt
         print(f"ValueError during registration: {ve}")
