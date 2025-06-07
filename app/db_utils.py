@@ -47,7 +47,7 @@ def init_db() -> None:
     finally:
         conn.close()
 
-def add_citizen_record_db(citizen_id: str, aes_gcm_nonce_hex: str, encrypted_data_with_tag_hex: str, kyber_ciphertext_c_hex: str) -> None:
+def add_citizen_record_db(citizen_id: str, aes_gcm_nonce_hex: str, dili_public_key: str, kyber_ciphertext_c_hex: str) -> None:
     """
     Thêm một bản ghi công dân mới vào database (đã cập nhật cho AES-GCM).
     Raise ValueError nếu citizen_id đã tồn tại.
@@ -58,7 +58,7 @@ def add_citizen_record_db(citizen_id: str, aes_gcm_nonce_hex: str, encrypted_dat
         cursor.execute("""
             INSERT INTO citizens (citizen_id, aes_gcm_nonce_hex, encrypted_data_with_tag_hex, kyber_ciphertext_c_hex)
             VALUES (?, ?, ?, ?)
-        """, (citizen_id, aes_gcm_nonce_hex, encrypted_data_with_tag_hex, kyber_ciphertext_c_hex))
+        """, (citizen_id, aes_gcm_nonce_hex, dili_public_key, kyber_ciphertext_c_hex))
         conn.commit()
         print(f"Record for citizen_id '{citizen_id}' (AES-GCM) added to the database.")
     except sqlite3.IntegrityError: 
