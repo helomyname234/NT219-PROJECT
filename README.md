@@ -1,6 +1,6 @@
 
 
-#Hướng dẫn Cài đặt Toàn diện Dự án NT219-PROJECT trên Ubuntu cho Người Mới
+# Hướng dẫn Cài đặt Toàn diện Dự án NT219-PROJECT trên Ubuntu cho Người Mới
 
 Chào bạn, đây là các bước để thiết lập môi trường và chạy dự án NT219-PROJECT trên máy Ubuntu của bạn.
 
