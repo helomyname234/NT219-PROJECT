@@ -6,6 +6,14 @@ venv/
 env/
 ENV/
 
+
+venv_appapp/
+venv/
+*.env
+.env.*
+env/
+ENV/
+
 # Bytecode và cache Python
 __pycache__/
 *.py[cod]
