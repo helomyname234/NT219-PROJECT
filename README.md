@@ -1,177 +1,149 @@
-# NT219-PROJECT: Hệ thống Tra cứu Thông tin Công dân Mô phỏng với Mật mã Hậu Lượng tử
 
-Đây là dự án mô phỏng một hệ thống tra cứu thông tin công dân đơn giản, được bảo vệ bằng các thuật toán mật mã hậu lượng tử từ thư viện Open Quantum Safe (OQS), cụ thể là CRYSTALS-Kyber (cho mã hóa/đóng gói khóa) và có thể là CRYSTALS-Dilithium (cho chữ ký số).
 
-## Mục tiêu
+#Hướng dẫn Cài đặt Toàn diện Dự án NT219-PROJECT trên Ubuntu cho Người Mới
 
-Dự án này nhằm mục đích:
-*   Minh họa việc tích hợp các thuật toán Mật mã dựa trên Lưới (LBC) vào một ứng dụng web đơn giản với backend API.
-*   Tạo một môi trường cụ thể để thực hiện các thử nghiệm tấn công cổ điển (ví dụ: tấn công giảm cơ sở) nhắm vào các thành phần LBC.
-*   Cung cấp cơ sở để thảo luận và đánh giá sơ bộ về các khía cạnh an toàn và hiệu suất của các thuật toán LBC trong một kịch bản ứng dụng giả định.
+Chào bạn, đây là các bước để thiết lập môi trường và chạy dự án NT219-PROJECT trên máy Ubuntu của bạn.
 
-## Công nghệ sử dụng
+##A. Cài đặt các Gói Hệ thống Cơ bản:
 
-*   **Backend:** Python với FastAPI
-*   **Mật mã:**
-    *   `liboqs` (Thư viện C cho thuật toán PQC)
-    *   `liboqs-python` (Python wrapper cho `liboqs` - được cài đặt như một phần phụ thuộc, không commit mã nguồn vào repo này)
-    *   `cryptography` (Thư viện Python cho mã hóa đối xứng AES)
-*   **Database:** SQLite
-*   **Frontend (Minh họa đơn giản):** HTML, CSS, JavaScript (giao tiếp với API backend)
+Trước tiên, chúng ta cần cài đặt một số công cụ và thư viện cần thiết từ trình quản lý gói apt. Mở Terminal và chạy các lệnh sau:
 
-## Chuẩn bị Môi trường (Ubuntu)
-
-Trước khi bắt đầu, hãy đảm bảo bạn đã cài đặt các gói điều kiện tiên quyết trên hệ thống Ubuntu của mình:
-
+###Cập nhật danh sách gói:
 ```bash
 sudo apt update
+```
+
+###Cài đặt các công cụ build, Git, và Python:
+```bash
 sudo apt install git cmake build-essential python3 python3-venv python3-pip
 ```
-### Hướng dẫn Cài đặt và Chạy dự án từ nhánh develop
-1. Clone Dự án từ Nhánh develop
 
-```bash      
-git clone -b develop https://github.com/helomyname234/NT219-PROJECT.git
-cd NT219-PROJECT
+##B. Biên dịch và Cài đặt liboqs (Thư viện C):
+
+liboqs là thư viện C cốt lõi cung cấp các thuật toán mật mã hậu lượng tử.
+
+###Tạo một thư mục để chứa mã nguồn và build liboqs (ví dụ: ~/build_oqs_libs):
+```bash
+mkdir -p ~/build_oqs_libs
+cd ~/build_oqs_libs
 ```
-(Thay helomyname234/NT219-PROJECT.git bằng URL repository của bạn nếu khác).
-2. Cài đặt liboqs (Thư viện C)
-Hệ thống này yêu cầu thư viện liboqs gốc được biên dịch và cài đặt với các thuật toán Kyber và Dilithium (nếu sử dụng) đã được kích hoạt.
-# Tạo một thư mục riêng để build liboqs (bên ngoài thư mục dự án này)
-mkdir -p ~/build_libs && cd ~/build_libs
 
-# Clone và build liboqs
+
+###Clone mã nguồn liboqs từ GitHub:
 ```bash
 git clone --depth=1 https://github.com/open-quantum-safe/liboqs
-cd liboqs
-mkdir build && cd build
+```
 
-# Cấu hình cmake, đảm bảo KEM_KYBER và SIG_DILITHIUM được bật
+###Chuẩn bị thư mục build:
+```bash
+cd liboqs
+mkdir build
+cd build
+```bash
+
+###Cấu hình bản build bằng cmake:
+Kích hoạt các thuật toán Kyber và Dilithium.
+```bash
 cmake .. -DBUILD_SHARED_LIBS=ON \
          -DOQS_ENABLE_KEM_KYBER=ON \
-         -DOQS_ENABLE_SIG_DILITHIUM=ON # Bật Dilithium nếu bạn dự định sử dụng
-# Biên dịch (thay $(nproc) bằng số core CPU của bạn nếu hệ thống không hiểu)
+         -DOQS_ENABLE_SIG_DILITHIUM=ON
+```bash
+
+Kiểm tra output của cmake để đảm bảo các thuật toán này được "Enabled".
+
+###Biên dịch liboqs:
+```bash
 make -j$(nproc)
-# Cài đặt vào hệ thống
-sudo make install
-
-# Cập nhật linker cache và LD_LIBRARY_PATH
-sudo ldconfig
-echo 'export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib' >> ~/.bashrc # Hoặc ~/.zshrc
-source ~/.bashrc # Hoặc source ~/.zshrc
-
-# Quay lại thư mục dự án NT219-PROJECT
-cd /path/to/your/NT219-PROJECT # Thay bằng đường dẫn thực tế
-
-
 ```
-Lưu ý: Nếu bạn gặp lỗi MechanismNotSupportedError khi chạy ứng dụng sau này, có thể là do các thuật toán cần thiết chưa được bật đúng cách khi biên dịch liboqs. Hãy kiểm tra lại cờ CMake.
-3. Thiết lập Môi trường ảo Python và Cài đặt các Phụ thuộc
 
-Từ thư mục gốc của dự án NT219-PROJECT:
+###Cài đặt liboqs vào hệ thống:
+```bash
+sudo make install
+```
 
-      
-# Tạo môi trường ảo
-python3 -m venv venv_oqs
-# Kích hoạt môi trường ảo
-source venv_oqs/bin/activate
+Cập nhật cache của dynamic linker và cấu hình LD_LIBRARY_PATH:
+```bash
+sudo ldconfig
+echo 'export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib' >> ~/.bashrc
+source ~/.bashrc
+```
 
-# Cài đặt liboqs-python wrapper (sẽ sử dụng liboqs đã cài ở bước 2)
-pip install oqs 
+(Nếu bạn của bạn dùng shell khác Zsh, họ cần sửa ~/.bashrc thành ~/.zshrc tương ứng).
 
-# Cài đặt các gói Python phụ thuộc khác
-pip install fastapi "uvicorn[standard]" cryptography
-# Nếu bạn có file requirements.txt, bạn có thể dùng:
-# pip install -r requirements.txt
+C##. Clone Dự án NT219-PROJECT và Cài đặt Phụ thuộc Python:
+
+Di chuyển đến thư mục bạn muốn lưu trữ dự án (ví dụ: thư mục nhà):
+```bash
+cd ~
+bash
+
+###Clone Repository NT219-PROJECT (Bao gồm Submodule liboqs-python):
+Thay thế URL_REPOSITORY_CUA_BAN bằng URL Git của dự án và TEN_THU_MUC_DU_AN bằng tên thư mục bạn muốn tạo.
+```bash
+git clone -b develop --recurse-submodules URL_REPOSITORY_CUA_BAN TEN_THU_MUC_DU_AN
+cd TEN_THU_MUC_DU_AN
+```
+
+###Tạo và Kích hoạt Môi trường ảo Python:
+```bash
+python3 -m venv venv_app
+source venv_app/bin/activate
+```
+
+Bạn sẽ thấy (venv_app) ở đầu dòng lệnh.
+
+###Cài đặt liboqs-python Wrapper từ Submodule:
+```bash
+cd liboqs-python  # Di chuyển vào thư mục submodule
+pip install .       # Cài đặt wrapper vào môi trường ảo đang hoạt động
+cd ..               # Quay lại thư mục dự án chính
+```
 
 
-(Lưu ý: liboqs-python khi được cài đặt qua pip install oqs sẽ cố gắng tìm liboqs.so đã được cài đặt trên hệ thống của bạn. Nếu không tìm thấy, nó có thể cố gắng tự build một bản liboqs (điều này cũng được đề cập trong README của liboqs-python như một tùy chọn). Tuy nhiên, việc cài đặt thủ công liboqs như ở Bước 2 cho phép bạn kiểm soát các thuật toán được bật tốt hơn).
-4. Khởi tạo Database và Khóa Hệ thống
+###Cài đặt các Gói Python Phụ thuộc Khác (Tường minh):
+Với môi trường ảo (venv_app) đã được kích hoạt, chạy các lệnh sau để cài đặt từng gói cần thiết:
+```bash
+pip install fastapi
+pip install "uvicorn[standard]"
+pip install cryptography
+pip install pydantic
+# Thêm các gói khác nếu ứng dụng của bạn có sử dụng (ví dụ: requests, python-jose, passlib)
+# Ví dụ:
+# pip install requests 
+# pip install "python-jose[cryptography]"
+# pip install "passlib[bcrypt]"
+```
+hoac chi can chay ####pip install -r requirements.txt
 
-Ứng dụng sẽ tự động tạo file database SQLite (citizens.db) và các khóa hệ thống cần thiết (trong thư mục system_keys/, thư mục này đã được thêm vào .gitignore) khi chạy lần đầu nếu chúng chưa tồn tại.
-5. Chạy Ứng dụng Backend (API Server)
-# (Với môi trường ảo venv_oqs đã được kích hoạt)
+Bạn cần liệt kê tất cả các thư viện Python mà dự án của bạn thực sự import và sử dụng ở đây.
+
+#D. Chạy Ứng dụng:
+
+Khởi chạy Server Backend (API):
+(Đảm bảo môi trường ảo venv_app vẫn đang được kích hoạt và bạn đang ở thư mục gốc của dự án TEN_THU_MUC_DU_AN)
+```bash
 uvicorn app.main:app --reload
+```
+Ứng dụng FastAPI sẽ khởi động. Nó sẽ tự động tạo file database citizens.db và các file khóa trong system_keys/ nếu chúng chưa tồn tại.
 
-(Giả sử file chính của bạn là app/main.py và instance FastAPI tên là app. Điều chỉnh nếu cần).
+Truy cập và Kiểm tra:
 
-Server sẽ thường chạy trên http://127.0.0.1:8000. Bạn có thể truy cập http://127.0.0.1:8000/docs để xem giao diện Swagger UI (tài liệu API tự động) do FastAPI cung cấp.
-6. (Tùy chọn) Chạy Frontend Đơn giản
+Mở trình duyệt web và truy cập http://127.0.0.1:8000/docs.
 
-Nếu bạn có một frontend HTML/JS đơn giản để tương tác với API:
+Thử các chức năng của API.
 
-    Mở file HTML chính (ví dụ frontend/index.html) trực tiếp bằng trình duyệt.
+(Nếu có) Mở file frontend/index.html.
 
-    Đảm bảo JavaScript trong frontend của bạn gọi đúng các địa chỉ API (ví dụ: http://127.0.0.1:8000/register, http://127.0.0.1:8000/lookup/{id}).
+Quan trọng cho bạn:
+Bạn nên kiểm tra lại toàn bộ mã nguồn Python của mình (trong thư mục app/ và các file script khác) để xem bạn đã import những thư viện nào. Sau đó, hãy đảm bảo rằng tất cả các thư viện đó (trừ các thư viện chuẩn của Python như os, json, sqlite3, typing) đều được liệt kê trong danh sách các lệnh pip install ở Bước C.5 của hướng dẫn này.
 
-Cấu trúc Thư mục (Đề xuất)
+Ví dụ, nếu bạn có import requests ở đâu đó, bạn cần thêm pip install requests vào danh sách.
 
-      
-NT219-PROJECT/
-├── app/                    # Thư mục chứa mã nguồn backend
-│   ├── main.py             # File chính của FastAPI, định nghĩa API endpoints
-│   ├── oqs_utils.py        # Các hàm tiện ích cho OQS và AES
-│   ├── db_utils.py         # Các hàm tiện ích cho SQLite
-│   ├── models.py           # (Nếu dùng) Pydantic models cho request/response
-│   └── __init__.py
-├── frontend/               # (Tùy chọn) Mã nguồn frontend đơn giản
-│   ├── index.html
-│   ├── script.js
-│   └── style.css
-├── system_keys/            # (Được .gitignore) Chứa khóa của hệ thống (ví dụ: admin_kyber_*.key)
-├── citizens.db             # (Được .gitignore) File database SQLite
-├── venv_oqs/               # (Được .gitignore) Môi trường ảo Python
-├── .gitignore              # Chỉ định các file/thư mục bị Git bỏ qua
-└── README.md               # File hướng dẫn này
+Cách tốt nhất vẫn là bạn tự tạo file requirements.txt cho chính mình bằng cách:
 
-    
+Kích hoạt môi trường ảo venv_oqs của bạn.
 
-IGNORE_WHEN_COPYING_START
-Use code with caution.
-IGNORE_WHEN_COPYING_END
-Hướng dẫn Thực hiện Tấn công (Mục đích Nghiên cứu)
+Chạy pip freeze > requirements.txt trong thư mục gốc dự án.
 
-Phần này phục vụ cho việc thực hiện các thử nghiệm phân tích an toàn theo mục tiêu của đồ án.
-
-    Thu thập Thông tin:
-
-        Khóa công khai của hệ thống (ví dụ: system_keys/admin_kyber_public.key).
-
-        Dữ liệu đã mã hóa từ database (ví dụ: nội dung file citizens.db, cụ thể là các cột chứa kyber_ciphertext_c_hex và encrypted_data_hex).
-
-    Chuẩn bị Công cụ:
-
-        SageMath hoặc một môi trường Python có các thư viện cần thiết cho đại số tuyến tính và lý thuyết số.
-
-    Thực hiện Tấn công Giảm Cơ sở (Ví dụ: nhắm vào Kyber):
-
-        Viết script (trong SageMath hoặc Python) để:
-
-            Đọc khóa công khai Kyber.
-
-            Chuyển đổi khóa công khai thành dạng ma trận (ví dụ: ma trận A và vector t cho Module-LWE). Đây là bước đòi hỏi hiểu biết về cấu trúc khóa của Kyber.
-
-            Xây dựng lưới (lattice) phù hợp từ các ma trận này.
-
-            Áp dụng các thuật toán giảm cơ sở (LLL, BKZ) để cố gắng tìm khóa bí mật.
-
-    Đánh giá Kết quả:
-
-        Nếu khóa bí mật được khôi phục (khả năng rất thấp với tham số chuẩn), sử dụng nó để thử giải mã dữ liệu trong citizens.db.
-
-        Ghi nhận thời gian, tài nguyên, và các quan sát trong quá trình tấn công.
-
-LƯU Ý QUAN TRỌNG VỀ AN NINH:
-
-    Dự án này được thực hiện với mục đích học tập và nghiên cứu về mật mã hậu lượng tử và các kỹ thuật phân tích cơ bản.
-
-    Không sử dụng các kỹ thuật mã hóa hoặc phương pháp quản lý khóa được trình bày trong dự án này cho các ứng dụng thực tế có yêu cầu bảo mật cao mà không có sự tư vấn và đánh giá chuyên sâu từ các chuyên gia an ninh.
-
-    TUYỆT ĐỐI KHÔNG COMMIT KHÓA BÍ MẬT LÊN REPOSITORY GIT. Sử dụng file .gitignore để loại trừ các file và thư mục nhạy cảm.
-
-Đóng góp
-
-(Điền tên thành viên nếu làm theo nhóm, hoặc để trống).
-License
-
-(Ví dụ: MIT License. Bạn có thể chọn một giấy phép phù hợp hoặc để trống nếu là đồ án nội bộ).
+Commit file requirements.txt đó lên GitHub.
+Thì người bạn của bạn sẽ chỉ cần chạy pip install -r requirements.txt là đủ.
