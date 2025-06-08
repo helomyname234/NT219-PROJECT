@@ -1,157 +1,153 @@
 import sqlite3
 import os
-from typing import Optional, Dict, Any, List # Thêm List nếu bạn viết hàm get_all_citizens_db
+from typing import Optional, Dict, Any, List
+import hashlib # Cần thiết nếu bạn muốn chạy self-test với hàm hash
 
 # Tên file database
 DB_FILE_PATH = "citizens.db"
 
 def get_db_connection() -> sqlite3.Connection:
-    """
-    Tạo và trả về một đối tượng kết nối đến database SQLite.
-    Kết nối này sẽ cho phép truy cập các cột bằng tên.
-    """
-    conn = sqlite3.connect(DB_FILE_PATH)
-    conn.row_factory = sqlite3.Row # Giúp truy cập kết quả như dictionary (row['column_name'])
+    conn = sqlite3.connect(DB_FILE_PATH, timeout=10.0) # Thêm timeout
+    conn.row_factory = sqlite3.Row
     return conn
 
 def init_db() -> None:
-    """
-    Khởi tạo database: Tạo bảng 'citizens' với các cột cho AES-GCM nếu nó chưa tồn tại.
-    """
     db_existed_before_init = os.path.exists(DB_FILE_PATH)
-    
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        # Xóa bảng cũ nếu tồn tại và cấu trúc không khớp? 
-        # Hoặc chỉ tạo nếu chưa có. Để đơn giản, chúng ta sẽ chỉ tạo nếu chưa có.
-        # Nếu bạn muốn đảm bảo cấu trúc mới, bạn có thể DROP TABLE IF EXISTS citizens rồi CREATE lại,
-        # nhưng điều đó sẽ xóa hết dữ liệu cũ. Cân nhắc cẩn thận.
-        # Vì đây là đồ án và bạn đang phát triển, việc xóa DB cũ (`rm citizens.db`) 
-        # trước khi chạy với cấu trúc mới là chấp nhận được.
-
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS citizens (
-                citizen_id TEXT PRIMARY KEY,
-                aes_gcm_nonce_hex TEXT NOT NULL,         -- Nonce cho AES-GCM
-                encrypted_data_with_tag_hex TEXT NOT NULL, -- Ciphertext + Tag từ AES-GCM
-                kyber_ciphertext_c_hex TEXT NOT NULL     -- Bản mã Kyber của khóa AES
+                hashed_citizen_id TEXT PRIMARY KEY,      -- SẼ LƯU HASH CỦA CITIZEN_ID
+                aes_gcm_nonce_hex TEXT NOT NULL,
+                encrypted_data_with_tag_hex TEXT NOT NULL, 
+                kyber_ciphertext_c_hex TEXT NOT NULL,
+                record_signature_hex TEXT NOT NULL     -- CHỮ KÝ DILITHIUM CỦA TOÀN BỘ BẢN GHI
             );
         """)
         conn.commit()
+        
+        # Kích hoạt WAL mode
+        try:
+            cursor.execute("PRAGMA journal_mode=WAL;")
+            current_journal_mode = cursor.fetchone()
+            if current_journal_mode and current_journal_mode[0].lower() == 'wal':
+                print("WAL mode enabled for the database.")
+            else: # Thử lại nếu lần đầu không thành công ngay
+                conn.close() 
+                conn = sqlite3.connect(DB_FILE_PATH, timeout=10.0)
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("PRAGMA journal_mode=WAL;")
+                conn.commit()
+                cursor.execute("PRAGMA journal_mode;")
+                current_journal_mode = cursor.fetchone()
+                if current_journal_mode and current_journal_mode[0].lower() == 'wal':
+                    print("WAL mode enabled successfully after re-connect.")
+                else:
+                    print(f"Failed to enable WAL mode. Current mode: {current_journal_mode[0] if current_journal_mode else 'Unknown'}")
+            conn.commit()
+        except sqlite3.Error as e_wal:
+            print(f"SQLite error while trying to enable WAL mode: {e_wal}")
+
         if not db_existed_before_init:
             print(f"Database file '{DB_FILE_PATH}' created.")
-        print("Table 'citizens' (with AES-GCM fields) is ready.")
+        print("Table 'citizens' (with hashed_id and Dilithium signature field) is ready.")
     except sqlite3.Error as e:
         print(f"SQLite error during table creation: {e}")
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
-def add_citizen_record_db(citizen_id: str, aes_gcm_nonce_hex: str, dili_public_key: str, kyber_ciphertext_c_hex: str) -> None:
-    """
-    Thêm một bản ghi công dân mới vào database (đã cập nhật cho AES-GCM).
-    Raise ValueError nếu citizen_id đã tồn tại.
-    """
+def add_citizen_record_db(
+    hashed_citizen_id: str, 
+    aes_gcm_nonce_hex: str, 
+    encrypted_data_with_tag_hex: str, 
+    kyber_ciphertext_c_hex: str,
+    record_signature_hex: str  # << THÊM THAM SỐ MỚI CHO CHỮ KÝ
+) -> None:
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
         cursor.execute("""
-            INSERT INTO citizens (citizen_id, aes_gcm_nonce_hex, encrypted_data_with_tag_hex, kyber_ciphertext_c_hex)
-            VALUES (?, ?, ?, ?)
-        """, (citizen_id, aes_gcm_nonce_hex, dili_public_key, kyber_ciphertext_c_hex))
+            INSERT INTO citizens (
+                hashed_citizen_id, aes_gcm_nonce_hex, encrypted_data_with_tag_hex, 
+                kyber_ciphertext_c_hex, record_signature_hex  -- << THÊM CỘT MỚI
+            )
+            VALUES (?, ?, ?, ?, ?) -- << 5 placeholders
+        """, (
+            hashed_citizen_id, aes_gcm_nonce_hex, encrypted_data_with_tag_hex, 
+            kyber_ciphertext_c_hex, record_signature_hex # << THÊM GIÁ TRỊ MỚI
+            ))
         conn.commit()
-        print(f"Record for citizen_id '{citizen_id}' (AES-GCM) added to the database.")
+        print(f"Record for hashed_citizen_id '{hashed_citizen_id}' (Signed) added.")
     except sqlite3.IntegrityError: 
-        print(f"Error: Citizen ID '{citizen_id}' already exists in the database.")
-        raise ValueError(f"Citizen ID {citizen_id} already exists.")
+        print(f"Error: Hashed Citizen ID '{hashed_citizen_id}' already exists.")
+        raise ValueError(f"Hashed Citizen ID {hashed_citizen_id} already exists.")
     except sqlite3.Error as e:
         print(f"SQLite error during record insertion: {e}")
         raise
     finally:
         conn.close()
 
-def get_citizen_record_db(citizen_id: str) -> Optional[Dict[str, Any]]:
-    """
-    Lấy thông tin bản ghi của một công dân dựa trên citizen_id (đã cập nhật cho AES-GCM).
-    Trả về một dictionary nếu tìm thấy, ngược lại trả về None.
-    """
+def get_citizen_record_db(hashed_citizen_id: str) -> Optional[Dict[str, Any]]:
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
         cursor.execute("""
-            SELECT citizen_id, aes_gcm_nonce_hex, encrypted_data_with_tag_hex, kyber_ciphertext_c_hex 
+            SELECT hashed_citizen_id, aes_gcm_nonce_hex, encrypted_data_with_tag_hex, 
+                   kyber_ciphertext_c_hex, record_signature_hex -- << LẤY THÊM CỘT CHỮ KÝ
             FROM citizens 
-            WHERE citizen_id = ?
-        """, (citizen_id,))
+            WHERE hashed_citizen_id = ? 
+        """, (hashed_citizen_id,))
         row = cursor.fetchone()
-        
         if row:
-            # print(f"Record found for citizen_id '{citizen_id}'.") # Bỏ print để đỡ rối log app
             return dict(row) 
-        else:
-            # print(f"No record found for citizen_id '{citizen_id}'.")
-            return None
+        return None
     except sqlite3.Error as e:
         print(f"SQLite error during record retrieval: {e}")
         return None 
     finally:
         conn.close()
 
-# --- (Tùy chọn) Hàm lấy tất cả công dân để debug ---
-# def get_all_citizens_db() -> List[Dict[str, Any]]:
-#     """Lấy tất cả các bản ghi công dân từ database."""
-#     conn = get_db_connection()
-#     cursor = conn.cursor()
-#     try:
-#         cursor.execute("""
-#             SELECT citizen_id, aes_gcm_nonce_hex, encrypted_data_with_tag_hex, kyber_ciphertext_c_hex 
-#             FROM citizens
-#         """)
-#         rows = cursor.fetchall()
-#         return [dict(row) for row in rows]
-#     except sqlite3.Error as e:
-#         print(f"SQLite error during retrieval of all records: {e}")
-#         return []
-#     finally:
-#         conn.close()
-
-
 if __name__ == '__main__':
-    print("Running DB Utils self-test (AES-GCM version)...")
+    print("Running DB Utils self-test (Hashed ID & Signature version)...")
     
-    # Xóa DB cũ để test từ đầu (chỉ khi chạy trực tiếp file này)
-    if os.path.exists(DB_FILE_PATH):
-        print(f"Removing existing database file '{DB_FILE_PATH}' for fresh test.")
-        os.remove(DB_FILE_PATH)
-        
-    init_db()
+    # Hàm hash tạm thời để test, trong thực tế sẽ import từ oqs_utils
+    def local_test_hash(data_str: str) -> str:
+        return hashlib.sha256(data_str.encode('utf-8')).hexdigest()
 
-    # Test thêm dữ liệu
+    if os.path.exists(DB_FILE_PATH):
+        print(f"Removing existing database '{DB_FILE_PATH}' for fresh test.")
+        os.remove(DB_FILE_PATH)
+    init_db()
+    
+    hashed_id1 = local_test_hash("CITIZEN_DB_TEST_001")
+    hashed_id2 = local_test_hash("CITIZEN_DB_TEST_002")
+
     try:
-        add_citizen_record_db("TESTGCM001", "nonce_hex_1", "encrypted_tag_hex_1", "kyber_cipher_hex_1")
-        add_citizen_record_db("TESTGCM002", "nonce_hex_2", "encrypted_tag_hex_2", "kyber_cipher_hex_2")
+        add_citizen_record_db(hashed_id1, "nonce_h1", "enc_data_h1", "kyber_ct_h1", "sig_h1")
+        add_citizen_record_db(hashed_id2, "nonce_h2", "enc_data_h2", "kyber_ct_h2", "sig_h2")
         print("Self-test: Added initial records.")
     except ValueError as e:
-        print(f"Self-test add error (should not happen on fresh DB): {e}")
+        print(f"Self-test add error: {e}")
 
-    # Test lấy dữ liệu
-    record1 = get_citizen_record_db("TESTGCM001")
+    record1 = get_citizen_record_db(hashed_id1)
     if record1:
-        print("Retrieved TESTGCM001:", record1)
-        assert record1["aes_gcm_nonce_hex"] == "nonce_hex_1"
-        assert record1["encrypted_data_with_tag_hex"] == "encrypted_tag_hex_1"
+        print("Retrieved by hashed_id1:", record1)
+        assert record1["aes_gcm_nonce_hex"] == "nonce_h1"
+        assert record1["record_signature_hex"] == "sig_h1"
     else:
-        print("TESTGCM001 not found during self-test retrieve. ERROR.")
+        print(f"{hashed_id1} not found during self-test retrieve. ERROR.")
 
-    record_non_existent = get_citizen_record_db("NONEXISTENTGCM")
+    record_non_existent = get_citizen_record_db(local_test_hash("NONEXISTENT"))
     assert record_non_existent is None
     print("Self-test: Retrieval of non-existent record OK.")
 
-    # Test thêm trùng lặp
     try:
-        add_citizen_record_db("TESTGCM001", "nonce_hex_3", "encrypted_tag_hex_3", "kyber_cipher_hex_3")
+        add_citizen_record_db(hashed_id1, "nonce_h3", "enc_data_h3", "kyber_ct_h3", "sig_h3")
         print("Self-test: Added duplicate record - FAILED (should have raised error).")
     except ValueError as e:
-        print(f"Self-test: Attempt to add duplicate record raised ValueError as expected: {e}")
+        print(f"Self-test: Attempt to add duplicate Hashed ID raised ValueError as expected: {e}")
     
-    print("DB Utils self-test (AES-GCM version) finished.")
+    print("DB Utils self-test (Hashed ID & Signature version) finished.")
