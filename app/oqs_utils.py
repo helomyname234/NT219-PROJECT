@@ -5,6 +5,8 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM # Sử dụng AES
 from cryptography.exceptions import InvalidTag # Để bắt lỗi tag không hợp lệ
 from typing import Optional, Tuple, Any
 
+import hashlib
+
 # --- Các hằng số và cấu hình ---
 #  --- Hằng số cho Kyber768----
 KEY_DIR = "system_keys"
@@ -22,6 +24,20 @@ ADMIN_DILITHIUM_SK_FILENAME = "admin_dilithium_secret.key"
 AES_KEY_LENGTH_BYTES = 32  # Kyber768 shared secret là 32 bytes (AES-256)
 AES_GCM_NONCE_LENGTH_BYTES = 12 # Nonce khuyến nghị cho AES-GCM
 # AES_GCM_TAG_LENGTH_BYTES = 16 # Thư viện cryptography tự quản lý tag
+
+
+# ---Hàm băm Hash sha256 --- #
+
+def hash_data_sha256(data_str: str) -> str:
+    """Băm một chuỗi đầu vào sử dụng SHA-256 và trả về dạng hex string."""
+    if not isinstance(data_str, str):
+        raise TypeError("Đầu vào cho hàm băm phải là một chuỗi.")
+    data_bytes = data_str.encode('utf-8')
+    sha256_hash = hashlib.sha256()
+    sha256_hash.update(data_bytes)
+    hashed_hex_str = sha256_hash.hexdigest()
+    return hashed_hex_str
+
 
 # --- Hàm hỗ trợ AES-GCM ---
 def generate_aes_key(key_length_bytes: int = AES_KEY_LENGTH_BYTES) -> bytes:
@@ -304,6 +320,17 @@ if __name__ == '__main__':
         print("Test giải mã AES-GCM với associated_data bị sửa đổi (bắt lỗi ValueError) THÀNH CÔNG!")
 
     print("\n" + "-"*30)
+    # --- Test sha256
+
+    print("Đang test hàm hash_data_sha256...")
+    original_id_1 = "CD001234567"
+    hashed_id_1 = hash_data_sha256(original_id_1)
+    print(f"  Original ID: {original_id_1}, Hashed: {hashed_id_1}")
+    assert hash_data_sha256(original_id_1) == hashed_id_1
+    print("Test hàm hash_data_sha256 THÀNH CÔNG!")
+
+    print("\n" + "-"*30)
+
     # --- Test OQS KEM (Kyber) - giữ nguyên phần này ---
     try:
         print(f"Đang test KEM với thuật toán đã cấu hình: {KYBER_ALG_NAME}")
