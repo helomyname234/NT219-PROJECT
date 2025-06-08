@@ -107,6 +107,9 @@ pip install fastapi
 pip install "uvicorn[standard]"
 pip install cryptography
 pip install pydantic
+pip install numpy
+pip install fpylll
+pip install cysignals
 # Thêm các gói khác nếu ứng dụng của bạn có sử dụng (ví dụ: requests, python-jose, passlib)
 # Ví dụ:
 # pip install requests 
