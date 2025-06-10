@@ -1,5 +1,6 @@
 # app/main.py
 from fastapi import FastAPI, HTTPException, status
+from fastapi.staticfiles import StaticFiles
 import json
 import os 
 from typing import Optional, List 
@@ -26,7 +27,6 @@ app = FastAPI(
     description="API mô phỏng hệ thống tra cứu thông tin công dân sử dụng băm ID, Kyber KEM, AES-GCM, và Dilithium Signature.",
     version="0.5.0", 
 )
-
 ADMIN_KYBER_PUBLIC_KEY: Optional[bytes] = None
 ADMIN_KYBER_SECRET_KEY: Optional[bytes] = None
 ADMIN_DILITHIUM_PUBLIC_KEY: Optional[bytes] = None 
@@ -52,9 +52,9 @@ async def startup_event():
         raise SystemExit("Không thể tải tất cả các khóa hệ thống cần thiết. Ứng dụng dừng lại.")
     print("Database and ALL System keys initialization complete. Admin keys loaded.")
 
-@app.get("/", response_model=MessageResponse, tags=["General"])
-async def read_root():
-    return {"message": "API Hệ thống Thông tin Công dân (Hashed ID, Kyber, AES-GCM, Dilithium)"}
+# @app.get("/", response_model=MessageResponse, tags=["General"])
+# async def read_root():
+#    return {"message": "API Hệ thống Thông tin Công dân (Hashed ID, Kyber, AES-GCM, Dilithium)"}
 
 @app.post("/register", response_model=CitizenDisplay, status_code=status.HTTP_201_CREATED, tags=["Citizens"])
 async def register_new_citizen(citizen_input: CitizenCreate): 
@@ -190,6 +190,7 @@ async def lookup_citizen_info(citizen_id_original: str):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Lỗi không xác định trong quá trình tra cứu.")
+app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
 
 # --- (Tùy chọn) Endpoint để xem tất cả công dân (cập nhật cho AES-GCM và Dilithium) ---
 # @app.get("/citizens", response_model=List[CitizenDisplay], tags=["Internal Tools"])

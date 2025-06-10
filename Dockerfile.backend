@@ -1,0 +1,22 @@
+# Giai đoạn 1: Builder
+FROM ubuntu:22.04 AS builder
+RUN apt-get update && apt-get install -y git cmake build-essential python3-pip ninja-build libssl-dev && rm -rf /var/lib/apt/lists/*
+WORKDIR /opt
+RUN git clone --depth 1 https://github.com/open-quantum-safe/liboqs.git
+WORKDIR /opt/liboqs/build
+RUN cmake .. -G "Ninja" -DBUILD_SHARED_LIBS=ON -DOQS_ENABLE_KEM_KYBER=ON -DOQS_ENABLE_SIG_DILITHIUM=ON
+RUN ninja install
+
+# Giai đoạn 2: Final App
+FROM python:3.10-slim-bookworm
+COPY --from=builder /usr/local/lib/ /usr/local/lib/
+COPY --from=builder /usr/local/include/oqs/ /usr/local/include/oqs/
+RUN apt-get update && apt-get install -y gcc libffi-dev git && rm -rf /var/lib/apt/lists/*
+RUN ldconfig
+WORKDIR /app
+COPY liboqs-python/ /app/liboqs-python/
+RUN pip install --no-cache-dir /app/liboqs-python/
+COPY requirements.txt .
+RUN grep -v "liboqs-python" requirements.txt > reqs.tmp && pip install --no-cache-dir -r reqs.tmp
+COPY . .
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

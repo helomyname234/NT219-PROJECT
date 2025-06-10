@@ -1,0 +1,27 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: nt219-backend
+    volumes:
+      - ./app:/app/app
+      - ./frontend:/app/frontend
+      - ./citizens.db:/app/citizens.db
+      - ./system_keys:/app/system_keys
+    expose:
+      - "8000"
+
+  nginx:
+    image: openquantumsafe/nginx # <-- DÙNG IMAGE DỰNG SẴN
+    container_name: nt219-nginx-proxy
+    ports:
+      - "4433:4433"
+    volumes:
+      # Ánh xạ cấu hình vào ĐÚNG vị trí image yêu cầu
+      - ./nginx-conf/nginx.conf:/opt/nginx/nginx-conf/nginx.conf:ro
+      
+      # Ánh xạ chứng chỉ vào ĐÚNG vị trí image yêu cầu
+      - ./nginx/pki:/opt/nginx/pki:ro
+    depends_on:
+      - backend

@@ -1,0 +1,27 @@
+# Bỏ qua các file và thư mục liên quan đến Git
+.git
+.gitignore
+.gitmodules
+
+# Bỏ qua các môi trường ảo Python
+venv_app
+venv_oqs
+
+# Bỏ qua các thư mục cache của Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Bỏ qua thư mục build cục bộ của liboqs (nếu có)
+build_oqs_libs/
+
+# Bỏ qua thư mục cấu hình Nginx
+nginx/
+nginx-conf/
+
+# Bỏ qua các file cấu hình Docker
+Dockerfile*
+docker-compose.yml
+
+# Bỏ qua thư mục node_modules nếu có
+node_modules/

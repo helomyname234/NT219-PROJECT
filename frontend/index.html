@@ -1,15 +1,156 @@
 <!DOCTYPE html>
-<html lang="en">
-    <link rel="stylesheet" href="./script.js">
+<html lang="vi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>NT219 - PQC Citizen Demo</title>
+    <style>
+        body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; margin: 0; padding: 20px; background-color: #f4f4f9; color: #333; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 20px 40px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        h1, h2 { color: #0056b3; border-bottom: 2px solid #0056b3; padding-bottom: 10px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem; }
+        button { display: inline-block; background-color: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; transition: background-color 0.2s; }
+        button:hover { background-color: #218838; }
+        #get-citizen-form button { background-color: #007bff; }
+        #get-citizen-form button:hover { background-color: #0056b3; }
+        pre { background-color: #2b2b2b; color: #f8f8f2; padding: 15px; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word; font-family: "Fira Code", "Courier New", monospace; }
+        .section { border-top: 1px solid #eee; padding-top: 20px; margin-top: 20px; }
+    </style>
 </head>
 <body>
-    <label for="id" >So Can Cuoc Cong Dan:</label>
-    <input type="text" id="cid">
-    <button type="submit" onclick=CreateUser()>Dang ki</button>
-</body>
 
+<div class="container">
+    <h1>Hệ thống Công dân (Bảo mật bằng PQC)</h1>
+    <p>Giao diện thử nghiệm tương tác với backend FastAPI qua một Reverse Proxy Nginx sử dụng kết nối TLS 1.3 với Dilithium và Kyber/ML-KEM.</p>
+
+    <!-- === PHẦN 1: ĐĂNG KÝ CÔNG DÂN MỚI === -->
+    <div class="section">
+        <h2>1. Đăng ký Công dân Mới</h2>
+        <form id="create-citizen-form">
+            <div class="form-group">
+                <label for="citizen_id_create">ID Công dân (CCCD):</label>
+                <input type="text" id="citizen_id_create" placeholder="Ví dụ: CD001234567" required>
+            </div>
+            <div class="form-group">
+                <label for="name">Họ và Tên:</label>
+                <input type="text" id="name" placeholder="Ví dụ: Nguyen Van A" required>
+            </div>
+            <div class="form-group">
+                <label for="dob">Ngày sinh (DD/MM/YYYY):</label>
+                <input type="text" id="dob" placeholder="Ví dụ: 01/01/1990" required>
+            </div>
+            <div class="form-group">
+                <label for="address">Địa chỉ:</label>
+                <input type="text" id="address" placeholder="Ví dụ: 123 Đường ABC, P. XYZ, Q. 1, TP. HCM" required>
+            </div>
+            <button type="submit">Đăng ký (POST /register)</button>
+        </form>
+    </div>
+
+    <!-- === PHẦN 2: TRA CỨU CÔNG DÂN === -->
+    <div class="section">
+        <h2>2. Tra cứu Công dân theo ID</h2>
+        <form id="get-citizen-form">
+            <div class="form-group">
+                <label for="citizen_id_lookup">ID Công dân (CCCD):</label>
+                <input type="text" id="citizen_id_lookup" placeholder="Nhập ID đã đăng ký để tra cứu" required>
+            </div>
+            <button type="submit">Tra cứu (GET /lookup/{id})</button>
+        </form>
+    </div>
+
+    <!-- === PHẦN 3: KẾT QUẢ TRẢ VỀ TỪ API === -->
+    <div class="section">
+        <h2>Kết quả từ API</h2>
+        <pre id="api-response">Chưa có kết quả...</pre>
+    </div>
+</div>
+
+<script>
+    const API_BASE_URL = ''; // Để trống vì frontend và backend được phục vụ từ cùng một Nginx proxy
+
+    const responseElement = document.getElementById('api-response');
+
+    // Hàm hiển thị kết quả
+    const displayResult = (data) => {
+        responseElement.textContent = JSON.stringify(data, null, 2);
+    };
+
+    // Hàm xử lý và hiển thị lỗi
+    const displayError = async (response) => {
+        let errorDetail = 'Lỗi không xác định.';
+        try {
+            const errorData = await response.json();
+            errorDetail = errorData.detail || JSON.stringify(errorData);
+        } catch (e) {
+            errorDetail = `Không thể đọc nội dung lỗi từ server. Status code: ${response.status}`;
+        }
+        responseElement.textContent = `Lỗi: ${errorDetail}`;
+    };
+
+    // Xử lý form đăng ký
+    document.getElementById('create-citizen-form').addEventListener('submit', async function (event) {
+        event.preventDefault();
+
+        // Dữ liệu được lấy từ form để khớp với Pydantic model 'CitizenCreate'
+        const citizenData = {
+            citizen_id: document.getElementById('citizen_id_create').value,
+            name: document.getElementById('name').value,
+            dob: document.getElementById('dob').value,
+            address: document.getElementById('address').value,
+        };
+        
+        responseElement.textContent = 'Đang gửi yêu cầu tới POST /register...';
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(citizenData),
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                displayResult(data);
+                // Xóa các trường trong form sau khi thành công
+                event.target.reset();
+            } else {
+                await displayError(response);
+            }
+        } catch (error) {
+            responseElement.textContent = `Lỗi mạng hoặc kết nối: ${error.message}`;
+        }
+    });
+
+    // Xử lý form tra cứu
+    document.getElementById('get-citizen-form').addEventListener('submit', async function (event) {
+        event.preventDefault();
+
+        const citizenId = document.getElementById('citizen_id_lookup').value;
+        if (!citizenId) {
+            displayResult({ error: 'Vui lòng nhập ID công dân.' });
+            return;
+        }
+
+        responseElement.textContent = `Đang gửi yêu cầu tới GET /lookup/${citizenId}...`;
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/lookup/${citizenId}`);
+            
+            if (response.ok) {
+                const data = await response.json();
+                displayResult(data);
+            } else {
+                await displayError(response);
+            }
+        } catch (error) {
+            responseElement.textContent = `Lỗi mạng hoặc kết nối: ${error.message}`;
+        }
+    });
+
+</script>
+
+</body>
 </html>
