@@ -169,6 +169,154 @@ LƯU Ý QUAN TRỌNG VỀ AN NINH:
 
     TUYỆT ĐỐI KHÔNG COMMIT KHÓA BÍ MẬT LÊN REPOSITORY GIT. Sử dụng file .gitignore để loại trừ các file và thư mục nhạy cảm.
 
+
+
+
+Bạn có thể tạo một file mới tên là README.md trong thư mục gốc NT219-project/ và dán nội dung dưới đây vào.
+Dự án NT219 - Ứng dụng Web với Mật mã Kháng Lượng tử
+
+Đây là một dự án ứng dụng web được xây dựng với Python ở phía backend, sử dụng Docker để đóng gói và triển khai, Nginx làm reverse proxy, và tích hợp thư viện mật mã kháng lượng tử (Post-Quantum Cryptography) liboqs.
+✨ Tính năng chính
+
+    Giao diện người dùng web (Frontend).
+
+    Backend API được xây dựng bằng Python.
+
+    Sử dụng cơ sở dữ liệu SQLite (citizens.db).
+
+    Tích hợp chữ ký số kháng lượng tử sử dụng liboqs-python.
+
+    Triển khai dễ dàng và nhất quán trên mọi môi trường với Docker và Docker Compose.
+
+    Cấu hình Nginx làm reverse proxy để phục vụ ứng dụng.
+
+🛠️ Công nghệ sử dụng
+
+    Backend: Python
+
+    Frontend: HTML/CSS/JavaScript (nằm trong thư mục frontend)
+
+    Cơ sở dữ liệu: SQLite
+
+    Web Server / Reverse Proxy: Nginx
+
+    Mật mã: liboqs-python
+
+    Containerization: Docker, Docker Compose
+
+🚀 Cài đặt và Khởi chạy
+
+Dự án này được thiết kế để chạy với Docker. Đây là phương pháp được khuyến nghị để đảm bảo môi trường hoạt động nhất quán và tránh các lỗi phụ thuộc.
+Yêu cầu tiên quyết
+
+    Git
+
+    Docker
+
+    Docker Compose (thường được cài đặt sẵn cùng với Docker Desktop)
+
+Hướng dẫn cài đặt
+
+Bước 1: Clone dự án từ GitHub
+
+      
+git clone <URL_CỦA_REPOSITORY_TRÊN_GITHUB>
+cd NT219-project
+
+    
+
+IGNORE_WHEN_COPYING_START
+Use code with caution. Bash
+IGNORE_WHEN_COPYING_END
+
+Bước 2: Tạo các tệp tin cần thiết bị .gitignore bỏ qua
+
+Dự án yêu cầu một số tệp và thư mục không được đưa lên Git vì lý do bảo mật và tối ưu hóa. Bạn cần tạo chúng cục bộ.
+
+    Tạo khóa mật mã:
+    Thư mục system_keys/ chứa các khóa bí mật cần thiết cho việc ký và xác minh. Chạy script (nếu có) hoặc tạo các khóa cần thiết theo yêu cầu của ứng dụng.
+    (Ví dụ, nếu có script get_sig_enabled.py để tạo khóa):
+
+          
+    python3 get_sig_enabled.py
+
+        
+
+    IGNORE_WHEN_COPYING_START
+
+    Use code with caution. Bash
+    IGNORE_WHEN_COPYING_END
+
+    Nếu không, bạn cần tạo thủ công thư mục system_keys và đặt các file khóa (ví dụ public_key.key, private_key.key) vào đó.
+
+    Khởi tạo cơ sở dữ liệu (nếu cần):
+    File citizens.db được bỏ qua bởi .gitignore. Thông thường, ứng dụng sẽ tự động tạo file này khi khởi chạy lần đầu. Nếu không, bạn có thể cần chạy một script khởi tạo riêng.
+
+Bước 3: Khởi chạy ứng dụng với Docker Compose
+
+Lệnh này sẽ xây dựng các images cần thiết (cho backend, nginx) và khởi chạy các container.
+
+      
+docker-compose up -d
+
+    
+
+IGNORE_WHEN_COPYING_START
+Use code with caution. Bash
+IGNORE_WHEN_COPYING_END
+
+    Cờ -d (detached mode) sẽ chạy các container ở chế độ nền. Bạn có thể bỏ -d để xem log trực tiếp từ tất cả các dịch vụ.
+
+Bước 4: Truy cập ứng dụng
+
+Sau khi các container đã khởi chạy thành công, bạn có thể truy cập ứng dụng web tại:
+http://localhost:80 (hoặc cổng khác nếu bạn đã thay đổi trong file docker-compose.yml)
+
+Bước 5: Dừng ứng dụng
+
+Để dừng tất cả các container liên quan đến dự án, chạy lệnh:
+
+      
+docker-compose down
+
+    
+
+IGNORE_WHEN_COPYING_START
+Use code with caution. Bash
+IGNORE_WHEN_COPYING_END
+📂 Cấu trúc thư mục
+
+      
+.
+├── app/                  # Chứa mã nguồn của backend Python
+├── citizens.db           # File cơ sở dữ liệu SQLite (bị git ignore)
+├── docker-compose.yml    # File định nghĩa các dịch vụ cho Docker Compose
+├── Dockerfile.backend    # File định nghĩa cách xây dựng Docker image cho backend
+├── frontend/             # Chứa mã nguồn của frontend (HTML, CSS, JS)
+├── get_sig_enabled.py    # Script ví dụ để tạo khóa
+├── liboqs-python/        # Thư viện hoặc submodule liên quan đến liboqs
+├── nginx/                # Chứa file Dockerfile cho Nginx
+├── nginx-conf/           # Chứa file cấu hình của Nginx (default.conf)
+├── README.md             # File hướng dẫn này
+├── requirements.txt      # Liệt kê các thư viện Python cần thiết
+├── system_keys/          # Chứa các khóa bí mật (bị git ignore)
+├── venv_app/             # Môi trường ảo cho backend (bị git ignore)
+├── venv_oqs/             # Môi trường ảo cho liboqs (bị git ignore)
+├── .git/                 # Thư mục của Git
+├── .gitignore            # Các file và thư mục mà Git sẽ bỏ qua
+└── ...
+
+    
+
+IGNORE_WHEN_COPYING_START
+Use code with caution.
+IGNORE_WHEN_COPYING_END
+⚠️ Lưu ý về Bảo mật
+
+    TUYỆT ĐỐI KHÔNG xóa các dòng system_keys/, *.db, và *env* khỏi file .gitignore.
+
+    Không bao giờ commit hoặc đẩy các thông tin nhạy cảm như khóa bí mật, mật khẩu, hoặc file cơ sở dữ liệu chứa dữ liệu người dùng lên kho lưu trữ công khai.
+
 Đóng góp
 
 (Điền tên thành viên nếu làm theo nhóm, hoặc để trống).
